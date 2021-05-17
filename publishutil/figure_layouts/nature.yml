@@ -1,0 +1,13 @@
+figsize:
+  column_width: 89
+  gutter_width: 5
+  max_width: 183
+  max_height: 247
+  units: 'mm'
+panel_labels:
+  case: 'lower'
+  prefix: ''
+  suffix: ''
+  fontsize: 8
+  fontweight: 'bold'
+  fontfamily: 'sans-serif'
