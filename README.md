@@ -1,12 +1,11 @@
 # matplotlib-publishutil
 
-[![PyPI version](https://badge.fury.io/py/publishutil.svg)]
-(https://badge.fury.io/py/matplotlib-publishutil)
+[![PyPI version](https://badge.fury.io/py/publishutil.svg)](https://badge.fury.io/py/matplotlib-publishutil)
 
 *Utilities to help configure matplotlib figures for publication.*
 
-This repo contains utility functions to help (re)configure [Matplotlib]
-(https://matplotlib.org/) figures within the formatting constraints of a given 
+This repo contains utility functions to help (re)configure [Matplotlib](https://matplotlib.org/) 
+figures within the formatting constraints of a given 
 publication. Example uses include:
 
   * Toggling figures between slide presentation and print publication formats. 
@@ -30,9 +29,8 @@ pip install git+https://github.com/tommct/matplotlib-publishutil.git
 
 ### Figure size by columns
 
-The following shows how we might scale an image for publication in [Nature]
-(https://www.nature.com/documents/nature-final-artwork.pdf), passing in 
-different parameters to `FigureLayout.get_figsize()`.
+The following shows how we might scale an image for publication in [Nature](https://www.nature.com/documents/nature-final-artwork.pdf), 
+passing in different parameters to `FigureLayout.get_figsize()`.
 
 The configuration file for *Nature* contains the following values for figsize:
 
@@ -86,8 +84,7 @@ the approach above. Also note that it is not necessary to label every axes.
 If you do not give an axes object a `panel_label` attribute, it will not get 
 drawn.
 
-The following example comes from [this matplotlib demo]
-(https://matplotlib.org/stable/tutorials/intermediate/gridspec.html):
+The following example comes from [this matplotlib demo](https://matplotlib.org/stable/tutorials/intermediate/gridspec.html):
 
 ```python
 fig_layout = FigureLayout('nature')
@@ -122,8 +119,7 @@ This particular example is useful as it shows that even though we supplied
 simply uppercase letters, the *Nature* style makes them 8-point, sans-serif,
 lowercased, bold.
 
-The placement of each panel label is in the upper left of each axes [tightbox]
-(https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.get_tightbbox.html).
+The placement of each panel label is in the upper left of each axes [tightbox](https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.get_tightbbox.html).
 Adjustments, in points, can be performed by modifying the `shift` argument.
 For example, to shift each label 10 pixels to the left and 2 pixels up:
 
@@ -153,9 +149,7 @@ to fork a branch and create a pull request to merge your changes.
 
 ### Using with Matplotlib styles
 
-This package is independent of other [Matplotlib Styles]
-(https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html).
-However, one may find styles such as those in [SciencePlots]
-(https://github.com/garrettj403/SciencePlots) to be complementary to the
-layout styles here. For example, one could use the `nature` layout here
+This package is independent of other [Matplotlib Styles](https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html).
+However, one may find styles such as those in [SciencePlots](https://github.com/garrettj403/SciencePlots) 
+to be complementary to the layout styles here. For example, one could use the `nature` layout here
 while using the `nature` Matplotlib style for a consistent look.
