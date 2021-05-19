@@ -225,19 +225,40 @@ class FigureLayout(object):
         """
         if self.params is None:
             return
+        if 'panel_labels' not in self.params:
+            return
         fig.canvas.draw()  # We need to update all layouts otherwise, we may not capture where the axes really are.
         size_in_points = fig.get_size_inches()*fig.dpi
+        usetex = rcParams['text.usetex']
+        params = self.params['panel_labels']
+        if usetex:
+            texprefix = ''
+            texsuffix = ''
+            if 'fontweight' in params:
+                if params['fontweight'] == 'bold':
+                    texprefix += r'\textbf{'
+                    texsuffix += r'}'
+            if 'fontstyle' in params:
+                if params['fontstyle'] in ['italic', 'oblique']:
+                    texprefix += r'\textit{'
+                    texsuffix += r'}'
 
         for ax in fig.get_axes():
             if hasattr(ax, 'panel_label'):
                 label = ax.panel_label
-                params = self.params['panel_labels']
                 fontkwargs = {k: v for (k,v) in params.items() if k.startswith('font')}
-                if params['case'] == 'lower':
-                    label = label.lower()
-                if params['case'] == 'upper':
-                    label = label.upper()
-                label = f'{params["prefix"]}{label}{params["suffix"]}'
+                if 'case' in params:
+                    if params['case'] == 'lower':
+                        label = label.lower()
+                    if params['case'] == 'upper':
+                        label = label.upper()
+                if 'prefix' in params:
+                    label = f'{params["prefix"]}{label}'
+                if 'suffix' in params:
+                    label = f'{label}{params["suffix"]}'
+                if usetex:
+                    label = texprefix + label + texsuffix
+
                 bbox_in_points = ax.get_tightbbox(fig.canvas.get_renderer(), for_layout_only=False)
 
                 # We write the label via `fig.text()`. However, if we have called fig.text() with labels before, 
