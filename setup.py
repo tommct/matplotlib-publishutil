@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="matplotlib-publishutil", # Replace with your own username
-    version="0.0.3",
+    version="0.0.4",
     author="Tom McTavish",
     author_email="tom@spikes.ai",
     description="Utilities to help configure matplotlib figures for publication.",

@@ -67,7 +67,17 @@ One column: 16:9 aspect: (3.5039370078740157, 1.970964566929134)
 
 Any of these approaches can be passed as the `figsize` arguments when creating
 a Matplotlib figure. E.g. 
-`fig, ax = plt.subplots(figsize=fig_layout.get_figsize(n_columns=1))`.
+`fig, ax = plt.subplots(figsize=fig_layout.get_figsize(n_columns=1), constrained_layout=True)`.
+
+> Note: When creating and saving figures, a 
+[constrained_layout](https://matplotlib.org/stable/tutorials/intermediate/constrainedlayout_guide.html)
+should be used over 
+[tight_layout](https://matplotlib.org/stable/tutorials/intermediate/tight_layout_guide.html).
+This helps ensure that the figure size as defined in our parameters file is more accurately adopted.
+Also, if one is not using the `dpi` as specified in 
+[`rcParams`](https://matplotlib.org/stable/api/matplotlib_configuration_api.html#matplotlib.rcParams),
+`dpi` should be sent as an argument to `fig_layout.get_figsize()` with the same value as when the
+figure is rendered or saved.
 
 ### Panel Labels
 
@@ -119,12 +129,19 @@ This particular example is useful as it shows that even though we supplied
 simply uppercase letters, the *Nature* style makes them 8-point, sans-serif,
 lowercased, bold.
 
-The placement of each panel label is in the upper left of each axes [tightbox](https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.get_tightbbox.html).
-Adjustments, in points, can be performed by modifying the `shift` argument.
-For example, to shift each label 10 pixels to the left and 2 pixels up:
+The placement of each panel label baseline-justified with the top horizontal
+axis and left of each axes [tightbox](https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.get_tightbbox.html). One can adjust these later by obtaining their handles
+with `fig.texts`:
+
+#### Retrieving rendered formats
+
+If you want your caption to dynamically change based off the rendering, you can retrieve the
+formatted labels as a dict:
 
 ```python
-fig_layout.draw_panel_labels(fig, shift=(-10,2))
+from IPython.display import Markdown as md
+panel_labels = fig_layout.get_formatted_panel_labels(fig, frmt='markdown')
+print(f'Figure 1. {panel_labels["A"]}, description of panel A...')
 ```
 
 ### List of available layout styles

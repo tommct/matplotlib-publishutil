@@ -11,3 +11,8 @@ panel_labels:
   fontsize: 8
   fontweight: 'bold'
   fontfamily: 'sans-serif'
+constrained_layout_pads:
+  w_pad: 0.0138888  # 1/72 in inches
+  h_pad: 0.0138888
+  hspace: 0
+  wspace: 0

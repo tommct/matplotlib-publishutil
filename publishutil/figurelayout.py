@@ -26,10 +26,18 @@ class FigureLayout(object):
         Raises:
             ValueError: If the name is invalid or if the specified file cannot be found or is problematic. 
         """
+        self.figsize_params = None
+        self.panel_label_params = None
+        self.constrained_layout_pads = None
+        self.panel_labels = {}
+
         if name is None:
-            errstr = f'"name" parameter is unspecified. See "FigureLayout.available" or specify a valid yml file.'
-            raise ValueError(errstr)
-        
+            self.name = 'default'
+            self._validate_panel_labels(
+                {}
+            )
+            return
+
         if name.endswith('.yml'):
             fname = name
             name = name.split(os.sep)[-1][:-4]
@@ -40,55 +48,68 @@ class FigureLayout(object):
                 raise ValueError(errstr)
             fname = os.path.join(FigureLayout._data_dir, f'{name}.yml')
 
-        self.params = None
         self.name = None
         with open(fname) as f:
-            self.params = yaml.load(f, Loader=yaml.SafeLoader)
-            if not isinstance(self.params, dict):
+            params = yaml.load(f, Loader=yaml.SafeLoader)
+            if not isinstance(params, dict):
                 raise ValueError(f'"{fname}" does not parse into a valid dict data structure.')
-            self._validate_parameters()
+            self._validate_parameters(params)
             self.name = name
-            if 'figsize' in self.params:
-                if self.params['figsize']['units'] == 'mm':
-                    self.max_height_inches = self.params['figsize']['max_height'] / 25.4
-                if self.params['figsize']['units'] == 'cm':
-                    self.max_height_inches = self.params['figsize']['max_height'] / 2.54
-        if name is None:
-            errstr = f'"{name}" is not a valid figure layout.'
-            errstr += 'Use "FigureLayout.available" to see available values or specify a valid path.'
-            raise ValueError(errstr)
                 
-    def _validate_parameters(self):
-        figsize_keys = ['column_width', 'gutter_width', 'max_width', 'max_height', 'units']
-        panel_label_keys = ['case', 'prefix', 'suffix']
-        if self.params is None:
-            warnings.warn('FigureLayout could not be instantiated. Using defaults.')
-        if 'figsize' not in self.params:
-            warnings.warn('"figsize" is not in FigureLayout. get_figsize() will return Matplotlib defaults.')
-        if 'panel_labels' not in self.params:
-            warnings.warn('"panel_labels" is not in FigureLayout, so draw_panel_labels() is unavailable.')
-        if 'figsize' in self.params:
-            unrecognized = list(set(self.params['figsize']).difference(set(figsize_keys)))
+    def _validate_figsize(self, params):
+        if 'figsize' in params:
+            figsize_keys = ['column_width', 'gutter_width', 'max_width', 'max_height', 'units']
+            unrecognized = list(set(params['figsize']).difference(set(figsize_keys)))
             if len(unrecognized) > 0:
                 warnings.warn(f'Found "{unrecognized}" in figsize and only "{figsize_keys}" are recognized.')
-            incomplete = list(set(figsize_keys).difference(set(self.params['figsize'])))
+            incomplete = list(set(figsize_keys).difference(set(params['figsize'])))
             if len(incomplete) > 0:
                 warnstr = 'These keys are missing from "figsize". Adding them will help ensure performance.\n'
                 warnstr += f'{incomplete}'
                 warnings.warn(warnstr)
-        if 'panel_labels' in self.params:
-            unrecognized = list(set(self.params['panel_labels']).difference(set(panel_label_keys)))
+            if params['figsize']['units'] == 'mm':
+                max_height_inches = params['figsize']['max_height'] / 25.4
+            if params['figsize']['units'] == 'cm':
+                max_height_inches = params['figsize']['max_height'] / 2.54
+            self.figsize_params = params['figsize']
+            self.figsize_params['max_height_inches'] = max_height_inches
+        else:
+            warnings.warn('"figsize" is not in FigureLayout. get_figsize() will return Matplotlib defaults.')
+            self.figsize_params = None
+
+    def _validate_panel_labels(self, params):
+        if 'panel_labels' in params:
+            panel_label_keys = ['case', 'prefix', 'suffix']
+            unrecognized = list(set(params['panel_labels']).difference(set(panel_label_keys)))
             unrecognized = [x for x in unrecognized if not x.startswith('font')]
             if len(unrecognized) > 0:
                 warnings.warn(f'Found "{unrecognized}" in panel_labels and only "{panel_label_keys}" are recognized.')
-            incomplete = list(set(panel_label_keys).difference(set(self.params['panel_labels'])))
+            incomplete = list(set(panel_label_keys).difference(set(params['panel_labels'])))
             if len(incomplete) > 0:
                 warnstr = 'These keys are missing from "panel_labels". Adding them will help ensure performance.\n'
                 warnstr += f'{incomplete}'
                 warnings.warn(warnstr)
+            self.panel_label_params = params['panel_labels']
+        else:
+            warnings.warn('"panel_labels" is not in FigureLayout, so draw_panel_labels() will render raw.')
+            self.panel_label_params = None
+
+    def _validate_constrained_layout_pads(self, params):
+        if 'constrained_layout_pads' in params:
+            self.constrained_layout_pads = params['constrained_layout_pads']
+        else:
+            self.constrained_layout_pads = None
+
+    def _validate_parameters(self, params):
+        if params is None:
+            warnings.warn('FigureLayout could not be instantiated. Using defaults.')
+            return
+        self._validate_figsize(params)
+        self._validate_panel_labels(params)
+        self._validate_constrained_layout_pads(params)
 
     def get_figsize(self, n_columns: int=None, width_proportion: float=None, height=None, 
-                    wh_ratio: float=(1 + sqrt(5))/2) -> tuple:
+                    wh_ratio: float=(1 + sqrt(5))/2, dpi: int=None) -> tuple:
         """Get the figure width and height in inches given our style layout parameters.
 
         Args:
@@ -105,6 +126,9 @@ class FigureLayout(object):
             wh_ratio (float, optional): When `height` is not specified, calculate the height of the figure as
                 a ratio to the width. Defaults to the Golden Ration: (1 + sqrt(5))/2 = 1.61, so the height is 0.61
                 of the width.
+            dpi (int): dpi to be used in the subsequent figure. Matplotlib requires appropriate rounding per this value.
+                If None, it will use rcParams['figure.dpi']. Regardless, this should be the same dpi used when rendering
+                or saving the figure. Default is None.
 
         Example:
 
@@ -117,6 +141,7 @@ class FigureLayout(object):
                     max_width: 183
                     max_height: 247
                     units: 'mm'
+                    dpi: 600
 
             Here are a few scenarios for `get_figsize()`:
 
@@ -141,7 +166,7 @@ class FigureLayout(object):
         Returns:
             tuple: (width, height) in inches.
         """
-        if self.name is None:
+        if self.name == 'default':
             figsize = rcParams['figure.figsize']
             if height is None:
                 return figsize  # Just return defaults.
@@ -152,31 +177,36 @@ class FigureLayout(object):
             raise ValueError('n_columns and width_proportion cannot both be NULL.')
             
         if n_columns is not None:
-            width_inches = self.params['figsize']['column_width'] * n_columns
-            width_inches += self.params['figsize']['gutter_width'] * floor(n_columns - 1)
+            width_inches = self.figsize_params['column_width'] * n_columns
+            width_inches += self.figsize_params['gutter_width'] * floor(n_columns - 1)
             
         if n_columns is None and (width_proportion > 1 or width_proportion < 0):
             raise ValueError('width_proportion must between 0 and 1.')
             
         elif width_proportion is not None and (0 <= width_proportion <= 1.):
-            width_inches = self.params['figsize']['max_width'] * width_proportion
-        if width_inches > self.params['figsize']['max_width']:
-            width_inches = self.params['figsize']['max_width']
+            width_inches = self.figsize_params['max_width'] * width_proportion
+        if width_inches > self.figsize_params['max_width']:
+            width_inches = self.figsize_params['max_width']
 
-        if self.params['figsize']['units'] == 'mm':
+        if self.figsize_params['units'] == 'mm':
             width_inches /= 25.4
-        if self.params['figsize']['units'] == 'cm':
+        if self.figsize_params['units'] == 'cm':
             width_inches /= 2.54
         if height is None:
             height = width_inches / wh_ratio
         if 0 < height <= 1:
-            height = self.max_height_inches * height
-        if height > self.max_height_inches:
-            height = self.max_height_inches
+            height = self.figsize_params['max_height_inches'] * height
+        if height > self.figsize_params['max_height_inches']:
+            height = self.figsize_params['max_height_inches']
         
+        # We need to round according to the dpi, otherwise the scaling may become off.
+        if dpi is None:
+            dpi = rcParams['figure.dpi']
+        width_inches = int(width_inches * dpi) / dpi
+        height = int(height * dpi) / dpi
         return width_inches, height
     
-    def draw_panel_labels(self, fig, shift=(0, 0)):
+    def draw_panel_labels(self, fig):
         """Draw panel labels into the figure using our selected style.
 
         To use, one has to set an axes object to be labeled with a "panel_label" attribute, as in:
@@ -186,67 +216,155 @@ class FigureLayout(object):
         This is an external, unrecognized attribute to matplotlib so calling `ax.set({'panel_label': 'A'})` will
         result in an error and one has to follow the approach above.
 
-        If for some reason we may want to perform further editing of the labels, they are available in the
+        Additionally, when creating and saving figures, a 
+        [constrained_layout](https://matplotlib.org/stable/tutorials/intermediate/constrainedlayout_guide.html)
+        should be used over 
+        [tight_layout](https://matplotlib.org/stable/tutorials/intermediate/tight_layout_guide.html). This helps
+        ensure that the figure size as defined in our parameters file is more accurately adopted.
+
+        If for some reason we may want to perform further editing of the label handles, they are available in the
         `fig.texts` list.
+        As well, the rendered labels is available as `fig_layout.labels`.
 
         Args:
             fig (Matplotlib Figure): A Matplotlib Figure with some number of axes.
-            shift (tuple): Shift, in pixels of the label from the upper left of the axes' 
-                [tightbox](https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.get_tightbbox.html).
-                A negative X value shifts to the left and a positive Y value moves up.
 
         Example:
 
             From https://matplotlib.org/stable/tutorials/intermediate/gridspec.html:
 
                 fig_layout = FigureLayout('nature')
-                fig3 = plt.figure(figsize=fig_layout.get_figsize(n_columns=2, height=1.), constrained_layout=True)
-                gs = fig3.add_gridspec(3, 3)
-                f3_ax1 = fig3.add_subplot(gs[0, :])
-                f3_ax1.set_title('gs[0, :]')
-                f3_ax2 = fig3.add_subplot(gs[1, :-1])
-                f3_ax2.set_title('gs[1, :-1]')
-                f3_ax3 = fig3.add_subplot(gs[1:, -1])
-                f3_ax3.set_title('gs[1:, -1]')
-                f3_ax4 = fig3.add_subplot(gs[-1, 0])
-                f3_ax4.set_title('gs[-1, 0]')
-                f3_ax5 = fig3.add_subplot(gs[-1, -2])
-                f3_ax5.set_title('gs[-1, -2]')
+                fig = plt.figure(figsize=fig_layout.get_figsize(n_columns=2, height=1.), constrained_layout=True)
+                gs = fig.add_gridspec(3, 3)
+                ax1 = fig.add_subplot(gs[0, :])
+                ax1.set_title('gs[0, :]')
+                ax2 = fig.add_subplot(gs[1, :-1])
+                ax2.set_title('gs[1, :-1]')
+                ax3 = fig.add_subplot(gs[1:, -1])
+                ax3.set_title('gs[1:, -1]')
+                ax4 = fig.add_subplot(gs[-1, 0])
+                ax4.set_title('gs[-1, 0]')
+                ax5 = fig.add_subplot(gs[-1, -2])
+                ax5.set_title('gs[-1, -2]')
 
                 # Add the panel_label attributes
-                f3_ax1.panel_label = 'A'
-                f3_ax2.panel_label = 'B'
-                f3_ax3.panel_label = 'E'
-                f3_ax4.panel_label = 'C'
-                f3_ax5.panel_label = 'D'
+                ax1.panel_label = 'A'
+                ax2.panel_label = 'B'
+                ax3.panel_label = 'E'
+                ax4.panel_label = 'C'
+                ax5.panel_label = 'D'
 
                 # Draw the panel labels
-                fig_layout.draw_panel_labels(fig3)
+                fig_layout.draw_panel_labels(fig)
+
+                # Print a caption in Markdown.
+                from IPython.display import Markdown as md
+                panel_labels = fig_layout.get_formatted_panel_labels(fig, frmt='markdown')
+                print(f'Figure 1. {panel_labels["A"]}, description of panel A...')
         """
-        if self.params is None:
+        formatted_labels = self.get_formatted_panel_labels(fig)
+        if len(formatted_labels) == 0:
             return
-        if 'panel_labels' not in self.params:
-            return
+        if self.constrained_layout_pads is not None:
+            fig.set_constrained_layout_pads(**self.constrained_layout_pads)
+        fig.align_labels()
         fig.canvas.draw()  # We need to update all layouts otherwise, we may not capture where the axes really are.
         size_in_points = fig.get_size_inches()*fig.dpi
+        constrained_layout = fig.get_constrained_layout()
+        fig.set_constrained_layout(False)
+        if self.panel_label_params:
+            fontkwargs = {k: v for (k,v) in self.panel_label_params.items() if k.startswith('font')}
+        else:
+            fontkwargs = {}
+
+        for ax in fig.get_axes():
+            if hasattr(ax, 'panel_label'):
+                formatted_label = formatted_labels[ax.panel_label]
+                bbox_in_points = ax.get_tightbbox(fig.canvas.get_renderer(), for_layout_only=False)
+                bbox = ax.get_position()
+                # x = bbox.x0 - ax._xmargin
+                y = bbox.y1
+
+                # We write the label via `fig.text()`. However, if we have called fig.text() with labels before, 
+                # we will run into problems trying to reuse the artist. Therefore, if it exists, we update it.
+                updating = False  
+                x = (bbox_in_points.x0)/size_in_points[0]
+                # y = (bbox_in_points.y1)/size_in_points[1]
+                for o in fig.findobj(text.Text):
+                    if o.get_text() == formatted_label:
+                        updating = True
+                        o._x = x
+                        o._y = y
+                        o.set(va='baseline', ha='left', **fontkwargs)
+
+                if updating is False:
+                    fig.text(x, y, formatted_label, figure=fig, va='baseline', ha='left', **fontkwargs)
+        fig.set_constrained_layout(constrained_layout)
+
+    def get_formatted_panel_labels(self, fig, frmt='figure') -> dict:
+        """For the figure axes that have a `panel_label` attribute, retrieve the string with its
+        formatting characteristics. For example, "A" in bold lowercase for `frmt='html'` will
+        give "<b>a</b>".
+
+        Args:
+            fig ([type]): Matplotlib figure where axes that have a `panel_label`, 
+                we will get the text format of the label.
+            format (str, optional): One of ['figure', 'tex', 'raw', 'html', 'markdown']. Defaults to 'figure'.
+        
+        Example:
+
+            # Print a caption in Markdown.
+            from IPython.display import Markdown as md
+            panel_labels = fig_layout.get_formatted_panel_labels(fig, frmt='markdown')
+            print(f'Figure 1. {panel_labels["A"]}, description of panel A...')
+
+        Returns:
+            dict: Keys are the `panel_label` attributes ascribed to various axes and the value is the
+                formatted string. 
+        """
+        params = self.panel_label_params  # Just using a smaller variable name.
+        if params is None:
+            params = {}
         usetex = rcParams['text.usetex']
-        params = self.params['panel_labels']
-        if usetex:
-            texprefix = ''
-            texsuffix = ''
+        prefix = ''
+        suffix = ''
+        ret = {}
+        if frmt == 'raw':
+            pass
+        elif frmt == 'markdown':
             if 'fontweight' in params:
                 if params['fontweight'] == 'bold':
-                    texprefix += r'\textbf{'
-                    texsuffix += r'}'
+                    prefix += '**'
+                    suffix += '**'
             if 'fontstyle' in params:
                 if params['fontstyle'] in ['italic', 'oblique']:
-                    texprefix += r'\textit{'
-                    texsuffix += r'}'
+                    prefix += '*'
+                    suffix += '*'
+        elif frmt == 'html':
+            if 'fontweight' in params:
+                if params['fontweight'] == 'bold':
+                    prefix += '<b>'
+                    suffix += '</b>'
+            if 'fontstyle' in params:
+                if params['fontstyle'] in ['italic', 'oblique']:
+                    prefix += '<i>'
+                    suffix += '</i>'
+        elif usetex or frmt == 'tex':
+            prefix = ''
+            suffix = ''
+            if 'fontweight' in params:
+                if params['fontweight'] == 'bold':
+                    prefix += r'\textbf{'
+                    suffix += r'}'
+            if 'fontstyle' in params:
+                if params['fontstyle'] in ['italic', 'oblique']:
+                    prefix += r'\textit{'
+                    suffix += r'}'
 
         for ax in fig.get_axes():
             if hasattr(ax, 'panel_label'):
                 label = ax.panel_label
-                fontkwargs = {k: v for (k,v) in params.items() if k.startswith('font')}
+                orig_label = label
                 if 'case' in params:
                     if params['case'] == 'lower':
                         label = label.lower()
@@ -256,22 +374,7 @@ class FigureLayout(object):
                     label = f'{params["prefix"]}{label}'
                 if 'suffix' in params:
                     label = f'{label}{params["suffix"]}'
-                if usetex:
-                    label = texprefix + label + texsuffix
+                label = prefix + label + suffix
+                ret[orig_label] = label
 
-                bbox_in_points = ax.get_tightbbox(fig.canvas.get_renderer(), for_layout_only=False)
-
-                # We write the label via `fig.text()`. However, if we have called fig.text() with labels before, 
-                # we will run into problems trying to reuse the artist. Therefore, if it exists, we update it.
-                updating = False  
-                x = (bbox_in_points.x0+shift[0])/size_in_points[0]
-                y = (bbox_in_points.y1+shift[1])/size_in_points[1]
-                for o in fig.findobj(text.Text):
-                    if o.get_text() == label:
-                        updating = True
-                        o._x = x
-                        o._y = y
-                        o.set(va='top', ha='left', **fontkwargs)
-
-                if updating is False:
-                    fig.text(x, y, label, figure=fig, va='top', ha='left', **fontkwargs)
+        return ret
